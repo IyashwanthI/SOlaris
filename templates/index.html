@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Solari Analytics — Support Agent-Assist Workspace</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              navy: "#1B365D",
+              navydark: "#152A49",
+              teal: "#0D9488",
+              tealdark: "#0B7D73",
+              canvas: "#F8FAFC",
+            },
+            fontFamily: { sans: ["Inter", "system-ui", "sans-serif"] },
+          },
+        },
+      };
+    </script>
+    <style>
+      body {
+        font-family: "Inter", system-ui, sans-serif;
+      }
+      .spinner {
+        width: 28px;
+        height: 28px;
+        border: 3px solid #e2e8f0;
+        border-top-color: #0d9488;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .fade-in {
+        animation: fade 0.25s ease-out;
+      }
+      @keyframes fade {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      .copilot-output {
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body class="bg-canvas text-slate-800 min-h-screen">
+    <!-- ===== HEADER ===== -->
+    <header class="bg-navy text-white shadow-lg sticky top-0 z-30">
+      <div
+        class="max-w-[1600px] mx-auto px-6 py-3 flex items-center justify-between gap-4"
+      >
+        <div class="flex items-center gap-3">
+          <div
+            class="w-9 h-9 rounded-lg bg-teal flex items-center justify-center font-extrabold text-white"
+          >
+            S
+          </div>
+          <div>
+            <div class="font-extrabold tracking-tight leading-tight">
+              Solari Analytics
+            </div>
+            <div class="text-xs text-slate-300 -mt-0.5">
+              Support Agent-Assist
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <span
+            id="latency-badge"
+            class="hidden sm:inline-flex items-center gap-1.5 bg-navydark/60 border border-white/10 text-slate-200 text-xs font-medium px-3 py-1.5 rounded-full"
+          >
+            <span class="w-2 h-2 rounded-full bg-teal"></span>
+            <span id="latency-text">retrieval idle</span>
+          </span>
+          <span
+            class="inline-flex items-center gap-2 bg-teal/15 border border-teal/40 text-teal-100 text-xs font-semibold px-3 py-1.5 rounded-full"
+          >
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20M7 20H4a1 1 0 01-1-1v-7a1 1 0 011-1h3M7 20V11"
+              />
+            </svg>
+            <span>Agent Match Precision:</span>
+            <b id="precision-badge"
+              >{{ feedback_stats.precision_pct }}% Helpful ({{ feedback_stats.up
+              }}/{{ feedback_stats.up + feedback_stats.down }})</b
+            >
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <!-- ===== WORKSPACE ===== -->
+    <main
+      class="max-w-[1600px] mx-auto px-6 py-6 grid grid-cols-1 lg:grid-cols-5 gap-6"
+    >
+      <!-- ===== LEFT PANEL (60% = 3/5) ===== -->
+      <section class="lg:col-span-3 space-y-5">
+        <!-- Scenario pills -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+          <div
+            class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3"
+          >
+            Quick-Load Scenario
+          </div>
+          <div class="flex flex-wrap gap-2">
+            {% for t in incoming_tickets %}
+            <button
+              type="button"
+              class="scenario-pill text-sm px-3 py-1.5 rounded-full bg-slate-100 hover:bg-teal hover:text-white border border-slate-200 transition"
+              data-ticket="{{ t | tojson | forceescape }}"
+            >
+              <span class="font-semibold">{{ t.ticket_id }}</span> · {{
+              t.subject[:38] }}
+            </button>
+            {% endfor %} {% for t in sample_tickets %}
+            <button
+              type="button"
+              class="scenario-pill text-sm px-3 py-1.5 rounded-full bg-slate-100 hover:bg-navy hover:text-white border border-slate-200 transition"
+              data-ticket="{{ t | tojson | forceescape }}"
+            >
+              <span class="font-semibold">{{ t.ticket_id }}</span> · {{
+              t.subject[:38] }}
+            </button>
+            {% endfor %}
+            <button
+              type="button"
+              id="unseen-bug-btn"
+              class="text-sm px-3 py-1.5 rounded-full bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-300 font-semibold transition"
+            >
+              + Unseen Bug Test
+            </button>
+          </div>
+        </div>
+
+        <!-- Active ticket form -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-sm font-bold uppercase tracking-wide text-navy">
+              Active Ticket
+            </h2>
+            <input
+              id="ticket_id"
+              class="text-xs font-bold text-teal bg-teal/10 border border-teal/30 rounded-full px-3 py-1 w-28 text-center focus:outline-none focus:ring-2 focus:ring-teal/40"
+              value=""
+              placeholder="Ticket ID"
+            />
+          </div>
+
+          <label class="block text-xs font-semibold text-slate-500 mb-1"
+            >Subject</label
+          >
+          <input
+            id="subject"
+            class="w-full mb-3 px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal/40"
+            placeholder="Short summary of the customer's issue"
+          />
+
+          <label class="block text-xs font-semibold text-slate-500 mb-1"
+            >Category</label
+          >
+          <input
+            id="category"
+            class="w-full mb-3 px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal/40"
+            placeholder="e.g. auth, billing, sync"
+          />
+
+          <label class="block text-xs font-semibold text-slate-500 mb-1"
+            >Description</label
+          >
+          <textarea
+            id="description"
+            rows="4"
+            class="w-full mb-4 px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal/40"
+            placeholder="Full description of the problem the customer is reporting"
+          ></textarea>
+
+          <button
+            id="searchBtn"
+            class="w-full bg-teal hover:bg-tealdark text-white font-semibold py-2.5 rounded-lg transition flex items-center justify-center gap-2"
+          >
+            <svg
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+            Find Similar Resolutions
+          </button>
+        </div>
+
+        <!-- Customer reply composer -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-bold uppercase tracking-wide text-navy">
+              Customer Reply
+            </h2>
+            <span class="text-xs text-slate-400">draft</span>
+          </div>
+          <textarea
+            id="customerReply"
+            rows="6"
+            class="w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal/40"
+            placeholder="Compose or insert a reply to the customer…"
+          ></textarea>
+          <div class="flex justify-end mt-3">
+            <button
+              id="sendReplyBtn"
+              class="bg-navy hover:bg-navydark text-white font-semibold px-5 py-2 rounded-lg transition"
+            >
+              Send Reply
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== RIGHT PANEL (40% = 2/5) ===== -->
+      <aside class="lg:col-span-2 space-y-5">
+        <!-- Matches -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+          <h2 class="text-sm font-bold uppercase tracking-wide text-navy mb-4">
+            Top Similar Resolved Tickets
+          </h2>
+          <div id="matches">
+            <div class="text-sm text-slate-400 py-8 text-center">
+              Run a search to surface the top 4 verified resolutions.
+            </div>
+          </div>
+        </div>
+
+        <!-- Copilot -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+          <div class="flex items-center gap-2 mb-1">
+            <h2 class="text-sm font-bold uppercase tracking-wide text-navy">
+              Guided Co-pilot
+            </h2>
+            <span
+              class="text-[10px] font-semibold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full"
+              >gemini-3.1-flash-lite</span
+            >
+          </div>
+          <p class="text-xs text-slate-400 mb-3">
+            Grounded strictly in the matched tickets above.
+          </p>
+          <div class="grid grid-cols-2 gap-2.5">
+            <button class="copilot-btn" data-action="summarize">
+              Summarize Fixes
+            </button>
+            <button class="copilot-btn" data-action="draft_reply">
+              Draft Reply
+            </button>
+            <button class="copilot-btn" data-action="classify_fix">
+              Config vs. Bug?
+            </button>
+            <button class="copilot-btn" data-action="checklist">
+              Checklist
+            </button>
+          </div>
+          <div id="copilotMeta" class="text-xs text-slate-400 mt-3"></div>
+          <div id="copilotOutput" class="mt-3"></div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Toast -->
+    <div
+      id="toast"
+      class="fixed bottom-6 right-6 bg-navy text-white px-5 py-3 rounded-lg shadow-xl opacity-0 pointer-events-none transition-opacity duration-300 z-50"
+    ></div>
+
+    <style>
+      .copilot-btn {
+        font-size: 0.875rem;
+        font-weight: 600;
+        padding: 0.625rem 0.5rem;
+        border-radius: 0.5rem;
+        border: 1px solid #cbd5e1;
+        transition: all 0.15s ease;
+        background: #fff;
+        border-color: #cbd5e1;
+        color: #1b365d;
+      }
+      .copilot-btn:hover:not(:disabled) {
+        background: #0d9488;
+        color: #fff;
+        border-color: #0d9488;
+      }
+      .copilot-btn:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+    </style>
+
+    <script>
+      const incoming = {{ incoming_tickets | tojson }};
+      const samples  = {{ sample_tickets | tojson }};
+
+      let lastActiveTicket = null;
+      let lastMatches = [];
+
+      const $ = (id) => document.getElementById(id);
+
+      const UNSEEN_BUG = {
+        ticket_id: "NT-UNSEEN",
+        category: "",
+        description: "A nonsensical, entirely out-of-domain report with no relation to any analytics-platform support topic in our knowledge base. Used to verify the confidence-floor guardrail rejects irrelevant queries.",
+        tags: ["nonsense", "out-of-scope"],
+      };
+
+      function escapeHtml(s) {
+        return (s || "").replace(/[&<>"']/g, c => (
+          {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+      }
+
+      function showToast(msg) {
+        const t = $("toast");
+        t.textContent = msg;
+        t.style.opacity = "1";
+        setTimeout(() => { t.style.opacity = "0"; }, 2200);
+      }
+
+      // ---- Populate form from a ticket object ----
+      function populate(t) {
+        $("ticket_id").value = t.ticket_id || "";
+        $("subject").value = t.subject || "";
+        $("category").value = t.category || "";
+        $("description").value = t.description || "";
+      }
+
+      function readQuery() {
+        return {
+          ticket_id: $("ticket_id").value.trim() || null,
+          subject: $("subject").value.trim(),
+          description: $("description").value.trim(),
+          category: $("category").value.trim() || null,
+          tags: [],
+          top_k: 4,
+        };
+      }
+
+      // ---- Scenario pills ----
+      document.querySelectorAll(".scenario-pill").forEach(pill => {
+        pill.addEventListener("click", () => {
+          const t = JSON.parse(pill.dataset.ticket);
+          populate(t);
+          runSearch();
+        });
+      });
+      $("unseen-bug-btn").addEventListener("click", () => {
+        populate(UNSEEN_BUG);
+        runSearch();
+      });
+
+      // ---- Copilot button enable/disable ----
+      function setCopilotEnabled(enabled) {
+        document.querySelectorAll(".copilot-btn").forEach(b => b.disabled = !enabled);
+      }
+      setCopilotEnabled(false);
+
+      // ---- Confidence badge ----
+      function tierBadge(m) {
+        if (m.confidence_tier === "HIGH") {
+          return `<span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">HIGH · ${m.confidence_pct}%</span>`;
+        }
+        return `<span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">MEDIUM · ${m.confidence_pct}%</span>`;
+      }
+
+      function renderMatches(matches, belowThreshold) {
+        const box = $("matches");
+        if (!matches.length) {
+          box.innerHTML = `
+            <div class="fade-in border border-amber-300 bg-amber-50 rounded-lg p-4 text-sm text-amber-800">
+              <div class="font-bold mb-1">⚠ Confidence gate triggered</div>
+              No verified past match found (below 55% confidence floor). Investigate manually or escalate to Tier-2.
+            </div>`;
+          setCopilotEnabled(false);
+          return;
+        }
+        box.innerHTML = matches.map(m => `
+          <div class="fade-in border border-slate-200 rounded-lg p-4 mb-3 hover:border-teal/50 transition">
+            <div class="flex items-center justify-between gap-2 mb-1.5">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-slate-400">#${m.rank}</span>
+                <span class="font-bold text-navy">${m.ticket_id}</span>
+                <span class="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">${escapeHtml(m.category)}</span>
+              </div>
+              ${tierBadge(m)}
+            </div>
+            <div class="font-semibold text-sm text-slate-800">${escapeHtml(m.subject)}</div>
+            <div class="text-sm text-slate-500 mt-1">${escapeHtml(m.resolution_notes)}</div>
+            <div class="flex items-center gap-2 mt-3">
+              <button onclick="vote('${m.ticket_id}','up')" class="text-sm px-2.5 py-1 rounded-md border border-slate-200 hover:bg-emerald-50 hover:border-emerald-300 transition">👍</button>
+              <button onclick="vote('${m.ticket_id}','down')" class="text-sm px-2.5 py-1 rounded-md border border-slate-200 hover:bg-rose-50 hover:border-rose-300 transition">👎</button>
+              <span class="text-[11px] text-slate-400 ml-auto">rrf ${m.rrf_score}</span>
+            </div>
+          </div>`).join("");
+        setCopilotEnabled(true);
+      }
+
+      // ---- Search ----
+      async function runSearch() {
+        const q = readQuery();
+        if (!q.subject && !q.description) { showToast("Enter a subject or description first."); return; }
+
+        $("searchBtn").disabled = true;
+        $("matches").innerHTML = '<div class="flex justify-center py-8"><div class="spinner"></div></div>';
+        $("latency-text").textContent = "searching…";
+        $("copilotOutput").innerHTML = "";
+        $("copilotMeta").textContent = "";
+
+        try {
+          const res = await fetch("/api/search", {
+            method: "POST", headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(q),
+          });
+          const data = await res.json();
+          lastActiveTicket = q;
+          lastMatches = data.matches || [];
+          renderMatches(lastMatches, data.below_threshold);
+          $("latency-text").textContent = `retrieval ${data.latency_ms} ms`;
+        } catch (err) {
+          $("matches").innerHTML = `<div class="text-sm text-rose-600">Search failed: ${escapeHtml(String(err))}</div>`;
+          $("latency-text").textContent = "retrieval error";
+        } finally {
+          $("searchBtn").disabled = false;
+        }
+      }
+      $("searchBtn").addEventListener("click", runSearch);
+
+      // ---- Copilot ----
+      function renderChecklist(text) {
+        const lines = text.split("\n");
+        let html = '<div class="space-y-2">';
+        let any = false;
+        for (const raw of lines) {
+          const line = raw.trimEnd();
+          const m = line.match(/^\s*-\s*\[\s*\]\s*(.*)$/);
+          if (m) {
+            any = true;
+            html += `
+              <label class="flex items-start gap-2 text-sm">
+                <input type="checkbox" class="mt-1 accent-teal-600 w-4 h-4" />
+                <span>${renderInline(m[1])}</span>
+              </label>`;
+          } else if (line) {
+            html += `<div class="text-sm text-slate-600">${renderInline(line)}</div>`;
+          }
+        }
+        html += "</div>";
+        return any ? html : `<div class="copilot-output text-sm text-slate-700">${renderInline(text)}</div>`;
+      }
+
+      function renderInline(s) {
+        // minimal markdown: **bold** and [T-XXXX] chips
+        return escapeHtml(s)
+          .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+          .replace(/\[(T-\d+)\]/g, '<span class="text-[11px] font-semibold bg-teal/10 text-teal px-1.5 py-0.5 rounded">$1</span>');
+      }
+
+      async function runCopilot(action) {
+        if (!lastMatches.length) { showToast("Run a search with results first."); return; }
+        $("copilotOutput").innerHTML = '<div class="flex justify-center py-6"><div class="spinner"></div></div>';
+        $("copilotMeta").textContent = "";
+        try {
+          const res = await fetch("/api/copilot", {
+            method: "POST", headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+              active_ticket: lastActiveTicket,
+              matched_tickets: lastMatches,
+              action,
+            }),
+          });
+          if (!res.ok) {
+            const e = await res.json().catch(() => ({}));
+            $("copilotOutput").innerHTML = `<div class="text-sm text-rose-600">${escapeHtml(e.detail || ("Error " + res.status))}</div>`;
+            return;
+          }
+          const data = await res.json();
+          const out = data.output || "";
+          $("copilotMeta").textContent = `${action} · ${data.latency_ms} ms`;
+
+          if (action === "checklist") {
+            $("copilotOutput").innerHTML = `<div class="fade-in border border-slate-200 rounded-lg p-4 bg-slate-50">${renderChecklist(out)}</div>`;
+          } else if (action === "draft_reply") {
+            $("copilotOutput").innerHTML = `
+              <div class="fade-in border border-slate-200 rounded-lg p-4 bg-slate-50">
+                <div class="copilot-output text-sm text-slate-700">${escapeHtml(out)}</div>
+                <button id="insertReplyBtn" class="mt-3 bg-teal hover:bg-tealdark text-white text-sm font-semibold px-4 py-2 rounded-lg transition">
+                  Insert into Customer Reply
+                </button>
+              </div>`;
+            $("insertReplyBtn").addEventListener("click", () => {
+              $("customerReply").value = out;
+              showToast("Reply inserted into composer.");
+              $("customerReply").scrollIntoView({behavior: "smooth", block: "center"});
+            });
+          } else {
+            $("copilotOutput").innerHTML = `<div class="fade-in border border-slate-200 rounded-lg p-4 bg-slate-50 copilot-output text-sm text-slate-700">${renderInline(out)}</div>`;
+          }
+        } catch (err) {
+          $("copilotOutput").innerHTML = `<div class="text-sm text-rose-600">Co-pilot failed: ${escapeHtml(String(err))}</div>`;
+        }
+      }
+      document.querySelectorAll(".copilot-btn").forEach(b =>
+        b.addEventListener("click", () => runCopilot(b.dataset.action)));
+
+      // ---- Feedback ----
+      async function vote(ticketId, v) {
+        try {
+          const res = await fetch("/api/feedback", {
+            method: "POST", headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({matched_ticket_id: ticketId, vote: v}),
+          });
+          const data = await res.json();
+          $("precision-badge").textContent =
+            `${data.precision_pct}% Helpful (${data.up}/${data.up + data.down})`;
+          showToast(v === "up" ? "Marked helpful 👍" : "Marked unhelpful 👎");
+        } catch (err) {
+          showToast("Feedback failed.");
+        }
+      }
+      window.vote = vote;
+
+      // ---- Send reply ----
+      $("sendReplyBtn").addEventListener("click", () => {
+        if (!$("customerReply").value.trim()) { showToast("Nothing to send — reply is empty."); return; }
+        showToast("✓ Reply sent to customer.");
+      });
+    </script>
+  </body>
+</html>

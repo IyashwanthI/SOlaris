@@ -1,0 +1,79 @@
+# ---- Secrets / environment ----
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# ---- Node / frontend ----
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.eslintcache
+
+# ---- Editor / OS ----
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+__MACOSX/
+
+# ---- Office temp / lock files ----
+~$*
+*.tmp
+
+# ---- Archives / submission bundles ----
+*.zip
+
+# ---- Project temp / scratch ----
+_*.py
+*.log
+tmp/
+temp/
+
+# ---- Database ----
+# tickets.db is COMMITTED by default so a prebuilt, pre-embedded DB ships with
+# the deploy (simplest Azure persistence). If you prefer to build it on the
+# server with `python ingest_tickets.py`, uncomment the next line:
+# tickets.db
+tickets.db-journal
+tickets.db-wal
+tickets.db-shm

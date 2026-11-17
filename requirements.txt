@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+pydantic
+numpy
+rank_bm25
+google-genai
+python-dotenv
+PyJWT
+pwdlib[argon2]
+jinja2
